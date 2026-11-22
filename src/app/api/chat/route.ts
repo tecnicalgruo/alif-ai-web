@@ -29,28 +29,28 @@ export async function POST(request: NextRequest) {
       role: message.role === "assistant" ? "model" : "user",
       parts: [{ text: message.content }],
     }));
-      upstream = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents }),
-          signal: AbortSignal.timeout(90000),
-        },
-      );
-    } else {
-      const baseUrl = provider === "grok" ? "https://api.x.ai/v1" : "https://openrouter.ai/api/v1";
-      const selectedModel = model ?? providerCatalog[provider].model;
-      upstream = await fetch(`${baseUrl}/chat/completions`, {
+    upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(key)}`,
+      {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-          ...(provider === "openrouter" ? { "HTTP-Referer": process.env.APP_URL ?? "https://alif-ai-web.vercel.app", "X-Title": "ALIF AI" } : {}),
-        },
-        body: JSON.stringify({ model: selectedModel, messages, stream: true }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents }),
         signal: AbortSignal.timeout(90000),
-      });
+      },
+    );
+    } else {
+    const baseUrl = provider === "grok" ? "https://api.x.ai/v1" : "https://openrouter.ai/api/v1";
+    const selectedModel = model ?? providerCatalog[provider].model;
+    upstream = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        ...(provider === "openrouter" ? { "HTTP-Referer": process.env.APP_URL ?? "https://alif-ai-web.vercel.app", "X-Title": "ALIF AI" } : {}),
+      },
+      body: JSON.stringify({ model: selectedModel, messages, stream: false }),
+      signal: AbortSignal.timeout(90000),
+    });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider connection failed";
@@ -61,41 +61,26 @@ export async function POST(request: NextRequest) {
     const detail = await upstream.text();
     return sseError(`Provider request failed (${upstream.status}). ${detail.slice(0, 500)}`);
   }
-  if (!upstream.body) return sseError("The provider returned no response stream.");
 
+  let text = "";
+  try {
+    const json = await upstream.json();
+    if (provider === "gemini") {
+    text = json.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("") ?? "";
+    } else {
+    text = json.choices?.[0]?.message?.content ?? "";
+    }
+  } catch (error) {
+    return sseError(error instanceof Error ? error.message : "Could not parse provider response");
+  }
+
+  if (!text) return sseError("The provider returned an empty response.");
+
+  const encoder = new TextEncoder();
   const stream = new ReadableStream({
-    async start(controller) {
-      const decoder = new TextDecoder();
-      const reader = upstream.body!.getReader();
-      let buffer = "";
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const data = line.slice(5).trim();
-            if (!data || data === "[DONE]") continue;
-            try {
-              const json = JSON.parse(data);
-              let text = "";
-              if (provider === "gemini") text = json.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-              else text = json.choices?.[0]?.delta?.content ?? "";
-              if (text) controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text })}\n\n`));
-            } catch {
-              // Ignore malformed provider chunks.
-            }
-          }
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Streaming connection failed";
-        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ error: message })}\n\n`));
-      } finally {
-        controller.close();
-      }
+    start(controller) {
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+    controller.close();
     },
   });
 
