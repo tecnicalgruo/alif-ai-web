@@ -12,6 +12,8 @@
 - Prisma data model
 - Secure headers and environment template
 - Unit tests for chat validation and safe calculator behavior
+- Tavily web search route
+- Server-side TXT, PDF and DOCX extraction
 - Repository instructions and setup documentation
 
 ## Current limitations

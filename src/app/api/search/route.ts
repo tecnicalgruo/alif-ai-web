@@ -9,6 +9,22 @@ export async function POST(request: NextRequest) {
   if (!process.env.WEB_SEARCH_API_KEY) {
     return Response.json({ error: "Web search is not configured", configured: false }, { status: 503 });
   }
-  // The provider call is intentionally isolated until a provider is selected.
-  return Response.json({ error: "Search provider not implemented", configured: true }, { status: 501 });
+  const upstream = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: process.env.WEB_SEARCH_API_KEY,
+      query: parsed.data.query,
+      max_results: parsed.data.maxResults,
+      include_answer: true,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!upstream.ok) {
+    const detail = await upstream.text();
+    return Response.json({ error: "Search provider request failed", status: upstream.status, detail: detail.slice(0, 300) }, { status: 502 });
+  }
+
+  return Response.json(await upstream.json());
 }
