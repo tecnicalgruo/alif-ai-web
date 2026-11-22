@@ -76,15 +76,7 @@ export async function POST(request: NextRequest) {
 
   if (!text) return sseError("The provider returned an empty response.");
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    start(controller) {
-    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
-    controller.close();
-    },
-  });
-
-  return new Response(stream, {
+  return new Response(`data: ${JSON.stringify({ text })}\n\n`, {
     headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
   });
 }
