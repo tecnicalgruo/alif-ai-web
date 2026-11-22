@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String?
+  conversations  Conversation[]
+  preferences    UserPreference[]
+  agentTasks     AgentTask[]
+  uploadedFiles  UploadedFile[]
+  pluginConfigs  PluginConfiguration[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  model          String?
+  createdAt      DateTime     @default(now())
+}
+
+model AIModel {
+  id       String  @id @default(cuid())
+  provider String
+  name     String
+  modelId  String  @unique
+  enabled  Boolean @default(true)
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
+
+model AgentTask {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objective String
+  status    String               @default("pending")
+  plan      Json?
+  logs      AgentExecutionLog[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model AgentExecutionLog {
+  id        String    @id @default(cuid())
+  taskId    String
+  task      AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  action    String
+  result    String
+  status    String
+  createdAt DateTime  @default(now())
+}
+
+model Plugin {
+  id           String                 @id @default(cuid())
+  slug         String                 @unique
+  name         String
+  description  String
+  enabled      Boolean                @default(true)
+  configurations PluginConfiguration[]
+}
+
+model PluginConfiguration {
+  id       String @id @default(cuid())
+  pluginId String
+  plugin   Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config   Json
+
+  @@unique([pluginId, userId])
+}
+
+model UploadedFile {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String
+  size      Int
+  storageKey String
+  createdAt DateTime @default(now())
+}
