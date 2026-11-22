@@ -15,14 +15,17 @@
 - Tavily web search route
 - Server-side TXT, PDF and DOCX extraction
 - Repository instructions and setup documentation
+- GitHub OAuth sign-in foundation
+- Local and Prisma-backed conversation routes
+- Chat history and memory controls
+- Plugin discovery and Tavily search interface
 
 ## Current limitations
 
-- No real provider key is configured in the repository
-- Web search is not connected to Tavily or Brave
-- Uploaded files are selected in the browser but not extracted or persisted
 - Database migrations are not run until PostgreSQL credentials are supplied
-- Authentication is not enabled
+- GitHub OAuth credentials must be added to Vercel
+- Tavily credentials must be added to use live web search
+- Authentication uses JWT sessions until an adapter-backed database is configured
 
 ## Next action
 

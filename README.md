@@ -15,6 +15,10 @@ ALIF AI is a responsive multi-model AI web agent built with Next.js, React and T
 - Prisma PostgreSQL schema
 - Secure response headers
 - Unit tests for validation and safe tool execution
+- GitHub OAuth sign-in foundation
+- Prisma-backed conversation routes when DATABASE_URL is configured
+- Local chat history and memory controls
+- Tavily live web search route
 
 ## Configure
 

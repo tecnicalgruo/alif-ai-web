@@ -19,6 +19,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetch("/api/status").then((r) => r.json()).then((data) => setProviders(data.providers ?? []));
+    try {
+      const saved = JSON.parse(localStorage.getItem("alif-ai-history") ?? "[]") as Message[];
+      if (Array.isArray(saved) && saved.every((message) => message.role && typeof message.content === "string")) setMessages(saved);
+    } catch {}
   }, []);
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, loading]);
 
@@ -66,7 +70,50 @@ export default function ChatPage() {
       if ((error as Error).name !== "AbortError") setMessages((current) => [...current.slice(0, -1), { role: "assistant", content: `Error: ${(error as Error).message}` }]);
     } finally {
       setLoading(false);
+      try {
+        const history = [...messages.filter((message) => message.content)];
+        localStorage.setItem("alif-ai-history", JSON.stringify(history));
+      } catch {}
     }
+  }
+
+  function copyMessage(content: string) {
+    navigator.clipboard?.writeText(content).catch(() => undefined);
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition = (window as unknown as {
+      SpeechRecognition?: new () => {
+        lang: string;
+        continuous: boolean;
+        interimResults: boolean;
+        start: () => void;
+        onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        continuous: boolean;
+        interimResults: boolean;
+        start: () => void;
+        onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void;
+      };
+    }).SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => {
+      lang: string;
+      continuous: boolean;
+      interimResults: boolean;
+      start: () => void;
+      onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void;
+    } }).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setInput("Voice input is not supported by this browser.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "bn-BD";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => setInput((current) => `${current}${event.results[0][0].transcript}`.trim());
+    recognition.start();
   }
 
   return (
@@ -84,6 +131,7 @@ export default function ChatPage() {
             <div key={index} className={`mb-5 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-7 ${message.role === "user" ? "bg-blue-600" : "border border-white/8 bg-[#101d31]"}`}>
                 {message.role === "assistant" ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown> : message.content}
+                {message.content && <button onClick={() => copyMessage(message.content)} className="mt-2 block text-xs text-slate-400 hover:text-white">Copy</button>}
               </div>
             </div>
           ))}
@@ -92,6 +140,7 @@ export default function ChatPage() {
         <div className="pb-5">
           <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#101d31] p-2">
             <textarea rows={1} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Message ALIF AI..." className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 outline-none" />
+            <button onClick={startVoiceInput} title="Voice input" className="h-12 rounded-xl border border-white/10 px-3 text-slate-300">Mic</button>
             {loading ? <button onClick={() => controller.current?.abort()} className="h-12 rounded-xl bg-red-500/20 px-4 text-red-300">Stop</button> : <button onClick={send} className="h-12 rounded-xl bg-blue-600 px-5 font-semibold hover:bg-blue-500">Send</button>}
           </div>
         </div>
