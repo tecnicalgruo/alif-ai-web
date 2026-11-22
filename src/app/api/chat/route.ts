@@ -10,19 +10,26 @@ function sseError(message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const parsed = chatRequestSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return Response.json({ error: "Invalid chat request", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const { messages, provider: requestedProvider, model } = parsed.data;
-  const provider: ProviderId = requestedProvider ?? (["gemini", "grok", "openrouter"] as ProviderId[])
-    .find((id) => Boolean(process.env[providerCatalog[id].key])) ?? "gemini";
-  const key = process.env[providerCatalog[provider].key];
-  if (!key) return sseError(`${providerCatalog[provider].name} is not configured. Add ${providerCatalog[provider].key} to .env.local.`);
-
-  let upstream: Response;
   try {
+    let body: unknown;
+    try {
+    body = await request.json();
+    } catch {
+    return Response.json({ error: "Invalid JSON request" }, { status: 400 });
+    }
+
+    const parsed = chatRequestSchema.safeParse(body);
+    if (!parsed.success) {
+    return Response.json({ error: "Invalid chat request", details: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const { messages, provider: requestedProvider, model } = parsed.data;
+    const provider: ProviderId = requestedProvider ?? (["gemini", "grok", "openrouter"] as ProviderId[])
+    .find((id) => Boolean(process.env[providerCatalog[id].key])) ?? "gemini";
+    const key = process.env[providerCatalog[provider].key];
+    if (!key) return sseError(`${providerCatalog[provider].name} is not configured. Add ${providerCatalog[provider].key} to Vercel environment variables.`);
+
+    let upstream: Response;
     if (provider === "gemini") {
     const selectedModel = model ?? providerCatalog.gemini.model;
     const contents = messages.map((message) => ({
@@ -52,31 +59,24 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(90000),
     });
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Provider connection failed";
-    return sseError(`Could not connect to ${providerCatalog[provider].name}: ${message}`);
-  }
 
-  if (!upstream.ok) {
+    if (!upstream.ok) {
     const detail = await upstream.text();
     return sseError(`Provider request failed (${upstream.status}). ${detail.slice(0, 500)}`);
-  }
-
-  let text = "";
-  try {
-    const json = await upstream.json();
-    if (provider === "gemini") {
-    text = json.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("") ?? "";
-    } else {
-    text = json.choices?.[0]?.message?.content ?? "";
     }
-  } catch (error) {
-    return sseError(error instanceof Error ? error.message : "Could not parse provider response");
-  }
 
-  if (!text) return sseError("The provider returned an empty response.");
+    const json = await upstream.json();
+    const text = provider === "gemini"
+    ? json.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("") ?? ""
+    : json.choices?.[0]?.message?.content ?? "";
 
-  return new Response(`data: ${JSON.stringify({ text })}\n\n`, {
+    if (!text) return sseError("The provider returned an empty response.");
+
+    return new Response(`data: ${JSON.stringify({ text })}\n\n`, {
     headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
-  });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected chat runtime error";
+    return sseError(message);
+  }
 }
