@@ -1,9 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 const schema = z.object({ query: z.string().trim().min(2).max(500), maxResults: z.number().int().min(1).max(10).default(5) });
 
 export async function POST(request: NextRequest) {
+  const rateLimit = consumeRateLimit(request, "search", 10, 60_000);
+  if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retryAfterSeconds);
+
   try {
     let body: unknown;
     try {
@@ -12,7 +16,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Invalid JSON request" }, { status: 400 });
     }
     const parsed = schema.safeParse(body);
-    if (!parsed.success) return Response.json({ error: "Invalid search request" }, { status: 400 });
+    if (!parsed.success) {
+      return Response.json({ error: "Invalid search request", details: parsed.error.flatten() }, { status: 400 });
+    }
     if (!process.env.WEB_SEARCH_API_KEY) {
       return Response.json({ error: "Web search is not configured", configured: false }, { status: 503 });
     }
@@ -30,7 +36,10 @@ export async function POST(request: NextRequest) {
 
     const detail = await upstream.text();
     if (!upstream.ok) {
-      return Response.json({ error: "Search provider request failed", status: upstream.status, detail: detail.slice(0, 300) }, { status: 502 });
+      return Response.json(
+        { error: "Search provider request failed", status: upstream.status, detail: detail.slice(0, 300) },
+        { status: 502 },
+      );
     }
     return Response.json(JSON.parse(detail));
   } catch (error) {

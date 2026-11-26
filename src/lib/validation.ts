@@ -11,3 +11,13 @@ export const chatRequestSchema = z.object({
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+export const conversationSaveSchema = z.object({
+  id: z.string().min(1).max(100).optional(),
+  title: z.string().trim().min(1).max(200),
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().min(1).max(30000),
+    model: z.string().max(200).optional(),
+  })).min(1).max(100),
+});

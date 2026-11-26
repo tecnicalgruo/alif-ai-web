@@ -10,7 +10,7 @@ export default function Home() {
         </div>
         <Link href="/chat" className="mb-6 flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 font-semibold hover:bg-blue-500">＋ New Chat</Link>
         <nav className="space-y-2 text-sm text-slate-300">
-          {[["Dashboard", "/"], ["AI Chat", "/chat"], ["Chat History", "/history"], ["AI Agent", "/agent"], ["Plugins", "/plugins"], ["Files", "/files"], ["Settings", "/settings"]].map(([label, href]) =>
+          {[["Dashboard", "/"], ["AI Chat", "/chat"], ["Chat History", "/history"], ["AI Agent", "/agent"], ["Plugins", "/plugins"], ["Files", "/files"], ["Memory", "/memory"], ["Settings", "/settings"]].map(([label, href]) =>
             <Link key={href} href={href} className="block rounded-lg px-3 py-2.5 hover:bg-white/5">{label}</Link>)}
         </nav>
       </aside>

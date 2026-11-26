@@ -9,7 +9,7 @@ const plugins = [
   ["code-assistant", "Code Assistant", "Provide programming assistance"],
   ["youtube-search", "YouTube Search", "Registered; provider not configured"],
   ["weather", "Weather", "Registered; provider not configured"],
-  ["custom-api", "Custom API", "Registered; execution requires explicit configuration"],
+  ["custom-api", "Custom API", "Requires explicit configuration"],
   ["text-summarizer", "Text Summarizer", "Summarize provided text"],
   ["translation", "Translation", "Translate Bengali and English text"],
   ["image-analysis", "Image Analysis", "Registered; provider not configured"],
@@ -17,6 +17,12 @@ const plugins = [
 
 export async function GET() {
   return NextResponse.json({
-    plugins: plugins.map(([slug, name, description]) => ({ slug, name, description, enabled: slug === "calculator" || slug.endsWith("reader") || slug === "txt-reader" })),
+    plugins: plugins.map(([slug, name, description]) => ({
+      slug,
+      name,
+      description,
+      enabled: ["calculator", "pdf-reader", "txt-reader", "docx-reader", "web-search"].includes(slug),
+      configured: slug !== "web-search" || Boolean(process.env.WEB_SEARCH_API_KEY),
+    })),
   });
 }

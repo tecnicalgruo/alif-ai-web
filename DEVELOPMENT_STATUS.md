@@ -1,36 +1,38 @@
 # ALIF AI Development Status
 
-## Completed
+## Implemented
 
-- Next.js 16 and TypeScript application scaffold
-- Premium dark dashboard
-- Chat page with provider selection and SSE streaming
-- Gemini, Grok and OpenRouter API route integrations
-- Zod validation
-- Agent API and calculator tool
-- Plugin, file and settings screens
-- Prisma data model
-- Secure headers and environment template
-- Unit tests for chat validation and safe calculator behavior
-- Tavily web search route
-- Server-side TXT, PDF and DOCX extraction
-- Repository instructions and setup documentation
-- GitHub OAuth sign-in foundation
-- Local and Prisma-backed conversation routes
-- Chat history and memory controls
-- Plugin discovery and Tavily search interface
+- Responsive dashboard, model-selecting chat, markdown output, copy, browser speech input and playback
+- Gemini, xAI Grok, and OpenRouter server-side chat adapters
+- GitHub OAuth sign-in foundation using JWT sessions
+- Browser-local guest history and conversation restore
+- Owner-scoped Prisma conversation create, update, list, and delete APIs
+- Memory deletion controls for local and authenticated database history
+- PostgreSQL connection status endpoint and Prisma singleton
+- Tavily search route with validated input and explicit provider failures
+- Plugin discovery endpoint and search UI
+- PDF, TXT, and DOCX server-side text extraction
+- Zod request validation, secure response headers, and calculator tool tests
+- Vercel production deployment and GitHub `main` auto-deploy
 
-## Current limitations
+## Requires owner configuration
 
-- Database migrations are not run until PostgreSQL credentials are supplied
-- GitHub OAuth credentials must be added to Vercel
-- Tavily credentials must be added to use live web search
-- Authentication uses JWT sessions until an adapter-backed database is configured
+- Model API keys and Tavily key in Vercel Environment Variables
+- GitHub OAuth `GITHUB_ID` / `GITHUB_SECRET` and `AUTH_SECRET` to enable account sign-in
+- PostgreSQL `DATABASE_URL` plus `prisma migrate deploy` before cloud history works
 
-## Next action
+## Not complete
 
-1. Add provider keys to `.env.local`.
-2. Start the development server.
-3. Send a chat request and verify real streaming.
-4. Configure PostgreSQL and run Prisma migrations.
-5. Implement a chosen search provider and server-side file extraction.
+- Full autonomous LLM planner and multi-step tool loop
+- Persistent plugin settings and per-user plugin enable/disable management
+- Uploaded-file storage and linking extracted content to conversations
+- Durable account preference controls
+- Distributed rate limiting for public provider endpoints
+
+## Next steps
+
+1. Configure the required environment variables in Vercel without sharing keys in chat.
+2. Create and configure the GitHub OAuth app callback URL.
+3. Configure PostgreSQL and apply checked-in Prisma migrations.
+4. Verify authenticated history, Tavily search, and provider calls against owner-provided credentials.
+5. Add distributed rate limiting before broader public traffic.

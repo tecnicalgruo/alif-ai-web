@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/deploy-migrations.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -17,7 +17,6 @@
     "next": "16.4.6",
     "next-auth": "^5.0.0-beta.32",
     "pdf-parse": "^2.4.5",
-    "prisma": "^6.19.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
@@ -31,8 +30,10 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "prisma": "^6.19.0",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
+    "vercel": "^66.6.0",
     "vitest": "^2.1.9"
   }
 }
