@@ -17,7 +17,7 @@ ALIF AI is a responsive multi-model AI assistant built with Next.js App Router, 
 - Browser speech recognition and speech playback where supported
 - Tavily web search API route and plugin discovery registry
 - Server-side PDF, TXT, and DOCX text extraction (4 MB upload limit); extracted text can be saved and linked to a conversation
-- Bounded multi-step AI agent with explicit per-tool approval, calculator, web search, and text summarization
+- Bounded multi-step AI agent with validated JSON planning, explicit per-tool approval, calculator, web search, and text summarization
 - PostgreSQL-backed distributed rate limits when a database is configured
 - Zod request validation, API-key isolation, and security headers
 

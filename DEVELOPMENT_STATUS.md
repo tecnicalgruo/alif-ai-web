@@ -10,7 +10,7 @@
 - Owner-scoped Prisma conversation create, update, list, and delete APIs
 - Account preferences for default provider, response language, and speech playback; browser-local guest fallback
 - Persistent per-account plugin enable/disable preferences, with browser-local guest fallback
-- Bounded LLM planner and multi-step tool loop using OpenRouter/xAI-compatible function calling
+- Bounded LLM planner and multi-step validated JSON-plan tool loop using OpenRouter/xAI-compatible chat completions
 - User-approved calculator, optional Tavily web search, and supplied-text summarizer tools
 - Saved extracted document text, owner-scoped file operations, and conversation linking
 - PostgreSQL-backed shared rate-limit buckets, with a logged, response-marked per-instance fallback until the new migration is applied
