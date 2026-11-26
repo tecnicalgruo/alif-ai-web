@@ -23,6 +23,9 @@ const completionSchema = z.object({
     }),
   })).min(1),
 });
+const providerErrorSchema = z.object({
+  error: z.union([z.string(), z.object({ message: z.string() })]),
+});
 
 const argumentSchemas = {
   calculator: z.object({ expression: z.string().min(1).max(300) }),
@@ -88,6 +91,7 @@ async function requestCompletion(
   if (!providers.length) throw new Error("The agent planner requires OPENROUTER_API_KEY or XAI_API_KEY.");
   const tools = toolDefinitions.filter((tool) => approvedTools.has(tool.function.name));
   let lastError = "No supported AI provider is available for the agent.";
+  const providerErrors: string[] = [];
 
   for (const provider of providers) {
     const key = process.env[providerCatalog[provider].key];
@@ -112,13 +116,23 @@ async function requestCompletion(
         signal: AbortSignal.any([signal, AbortSignal.timeout(45_000)]),
       });
       if (!upstream.ok) {
-        lastError = `${providerCatalog[provider].name} returned HTTP ${upstream.status}.`;
+        const detail: unknown = await upstream.json().catch(() => null);
+        const parsedError = providerErrorSchema.safeParse(detail);
+        const providerMessage = parsedError.success
+          ? typeof parsedError.data.error === "string"
+            ? parsedError.data.error
+            : parsedError.data.error.message
+          : "";
+        const safeMessage = (key ? providerMessage.split(key).join("[redacted]") : providerMessage).slice(0, 240);
+        lastError = `${providerCatalog[provider].name} returned HTTP ${upstream.status}${safeMessage ? `: ${safeMessage}` : "."}`;
+        providerErrors.push(lastError);
         continue;
       }
       const raw: unknown = await upstream.json();
       const parsed = completionSchema.safeParse(raw);
       if (!parsed.success) {
         lastError = `${providerCatalog[provider].name} returned an invalid agent response.`;
+        providerErrors.push(lastError);
         continue;
       }
       return parsed.data.choices[0].message;
@@ -127,9 +141,10 @@ async function requestCompletion(
       lastError = error instanceof Error && error.name === "TimeoutError"
         ? `${providerCatalog[provider].name} timed out.`
         : `Could not connect to ${providerCatalog[provider].name}.`;
+      providerErrors.push(lastError);
     }
   }
-  throw new Error(lastError);
+  throw new Error(providerErrors.join(" ") || lastError);
 }
 
 async function executeTool(name: string, rawArguments: string, approved: Set<AgentToolName>, signal: AbortSignal) {
