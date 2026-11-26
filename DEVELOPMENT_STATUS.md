@@ -4,6 +4,7 @@
 
 - Responsive dashboard, model-selecting chat, markdown output, copy, browser speech input and playback
 - Gemini, xAI Grok, and OpenRouter server-side chat adapters
+- Token streaming and OpenRouter-first provider failover for faster chat
 - GitHub OAuth sign-in foundation using JWT sessions
 - Browser-local guest history and conversation restore
 - Owner-scoped Prisma conversation create, update, list, and delete APIs

@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     return sseError(`${providerCatalog[provider].name} is not configured. Add ${providerCatalog[provider].key} to Vercel environment variables.`);
   }
 
-  const configuredProviders = (["gemini", "grok", "openrouter"] as ProviderId[])
+  const configuredProviders = (["openrouter", "gemini", "grok"] as ProviderId[])
     .filter((id) => Boolean(process.env[providerCatalog[id].key]));
   const providersToTry = [provider, ...configuredProviders.filter((id) => id !== provider)];
   let lastError = `Could not connect to ${providerCatalog[provider].name}.`;

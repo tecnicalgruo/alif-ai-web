@@ -20,7 +20,7 @@ type SessionStatus = { authenticated: boolean; databaseConfigured: boolean };
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [provider, setProvider] = useState("gemini");
+  const [provider, setProvider] = useState("openrouter");
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [session, setSession] = useState<SessionStatus>({ authenticated: false, databaseConfigured: false });
   const [loading, setLoading] = useState(false);
