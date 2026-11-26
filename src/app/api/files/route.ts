@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAuthenticatedAccount } from "@/lib/database/account";
 import { getPrisma } from "@/lib/database/prisma";
-import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitHeaders, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
 import { z } from "zod";
 
 const allowedTypes = new Set([
@@ -100,7 +100,10 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   const prisma = getPrisma();
   if (!session?.user?.email || !prisma) {
-    return Response.json({ name: file.name, mimeType: file.type, size: file.size, text, stored: false });
+    return Response.json(
+      { name: file.name, mimeType: file.type, size: file.size, text, stored: false },
+      { headers: rateLimitHeaders(rateLimit.distributed, rateLimit.degraded) },
+    );
   }
 
   try {
@@ -126,7 +129,10 @@ export async function POST(request: NextRequest) {
       },
       select: { id: true, name: true, mimeType: true, size: true, conversationId: true, createdAt: true },
     });
-    return Response.json({ name: file.name, mimeType: file.type, size: file.size, text, stored: true, file: savedFile });
+    return Response.json(
+      { name: file.name, mimeType: file.type, size: file.size, text, stored: true, file: savedFile },
+      { headers: rateLimitHeaders(rateLimit.distributed, rateLimit.degraded) },
+    );
   } catch (error) {
     console.error("Could not persist uploaded document:", error);
     return Response.json({ error: "Document extracted but could not be saved to your account." }, { status: 503 });

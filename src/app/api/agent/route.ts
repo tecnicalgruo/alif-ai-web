@@ -6,7 +6,7 @@ import { getAuthenticatedAccount } from "@/lib/database/account";
 import { getPrisma } from "@/lib/database/prisma";
 import { calculateExpression, summarizeText, toolRegistry } from "@/lib/agent/tool-registry";
 import { searchTavily } from "@/lib/search/tavily";
-import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitHeaders, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
 import { agentRequestSchema } from "@/lib/validation";
 
 const completionSchema = z.object({
@@ -305,5 +305,5 @@ export async function POST(request: NextRequest) {
     executionLogs,
     finalReport,
     savedToAccount,
-  });
+  }, { headers: rateLimitHeaders(rateLimit.distributed, rateLimit.degraded) });
 }

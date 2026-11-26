@@ -9,6 +9,7 @@ const globalForRateLimit = globalThis as typeof globalThis & {
 
 const buckets = globalForRateLimit.rateLimitBuckets ??= new Map<string, Bucket>();
 let lastDatabaseSweep = 0;
+let warnedMissingRateLimitTable = false;
 
 export function consumeRateLimit(
   request: Request,
@@ -57,7 +58,7 @@ export async function consumeDistributedRateLimit(
 ) {
   const prisma = getPrisma();
   if (!prisma) {
-    return { ...consumeRateLimit(request, scope, limit, windowMs, now), distributed: false, unavailable: false };
+    return { ...consumeRateLimit(request, scope, limit, windowMs, now), distributed: false, unavailable: false, degraded: false };
   }
 
   const forwardedIp = request.headers.get("x-vercel-forwarded-for")
@@ -84,16 +85,41 @@ export async function consumeDistributedRateLimit(
       lastDatabaseSweep = now;
     }
 
+    warnedMissingRateLimitTable = false;
     return {
       allowed: bucket.count <= limit,
       retryAfterSeconds: bucket.count <= limit ? 0 : Math.max(1, Math.ceil((resetAt - now) / 1000)),
       distributed: true,
       unavailable: false,
+      degraded: false,
     };
   } catch (error) {
+    if (isMissingRateLimitTable(error)) {
+      if (!warnedMissingRateLimitTable) {
+        console.warn("ApiRateLimit table is missing; using per-instance limits until Prisma migrations are applied.");
+        warnedMissingRateLimitTable = true;
+      }
+      return {
+        ...consumeRateLimit(request, scope, limit, windowMs, now),
+        distributed: false,
+        unavailable: false,
+        degraded: true,
+      };
+    }
     console.error("Distributed rate limiting failed:", error);
-    return { allowed: false, retryAfterSeconds: 0, distributed: true, unavailable: true };
+    return { allowed: false, retryAfterSeconds: 0, distributed: true, unavailable: true, degraded: false };
   }
+}
+
+export function isMissingRateLimitTable(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2021");
+}
+
+export function rateLimitHeaders(distributed: boolean, degraded: boolean) {
+  return {
+    "X-Rate-Limit-Store": distributed ? "postgres" : "instance",
+    ...(degraded ? { "X-Rate-Limit-Notice": "Shared rate limits are waiting for database migrations." } : {}),
+  };
 }
 
 export function rateLimitResponse(retryAfterSeconds: number) {

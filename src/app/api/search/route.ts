@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitHeaders, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
 import { searchTavily } from "@/lib/search/tavily";
 
 const schema = z.object({ query: z.string().trim().min(2).max(500), maxResults: z.number().int().min(1).max(10).default(5) });
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Web search is not configured", configured: false }, { status: 503 });
     }
     const result = await searchTavily(parsed.data.query, parsed.data.maxResults, request.signal);
-    return Response.json(result);
+    return Response.json(result, { headers: rateLimitHeaders(rateLimit.distributed, rateLimit.degraded) });
   } catch (error) {
     console.error("Search request failed:", error);
     return Response.json({

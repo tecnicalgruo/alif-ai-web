@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { consumeRateLimit } from "./rate-limit";
+import { consumeRateLimit, isMissingRateLimitTable } from "./rate-limit";
 
 describe("request rate limit", () => {
+  it("recognizes a pending rate-limit migration without masking other database errors", () => {
+    expect(isMissingRateLimitTable({ code: "P2021" })).toBe(true);
+    expect(isMissingRateLimitTable({ code: "P2022" })).toBe(false);
+    expect(isMissingRateLimitTable(new Error("database unavailable"))).toBe(false);
+  });
+
   it("limits a caller within a fixed window and permits it after reset", () => {
     const store = new Map<string, { count: number; resetAt: number }>();
     const request = new Request("https://example.test/api/chat", {

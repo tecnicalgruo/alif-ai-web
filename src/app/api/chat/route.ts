@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getProviderFallbackOrder, providerCatalog, type ProviderId } from "@/lib/ai/model-router";
 import { parseProviderEvent } from "@/lib/ai/provider-stream";
-import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitHeaders, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
 import { chatRequestSchema } from "@/lib/validation";
 
 const streamHeaders = {
@@ -104,9 +104,11 @@ export async function POST(request: NextRequest) {
     return sseError("No AI provider is configured. Add at least one provider API key to the server environment.");
   }
   let lastError = `Could not connect to ${providerCatalog[provider].name}.`;
-  let fallbackCause = providersToTry[0] === provider
-    ? ""
-    : `${providerCatalog[provider].name} is not configured`;
+  const notices = [
+    ...(rateLimit.degraded ? ["Shared rate limits are awaiting database migration; temporary instance limits are active."] : []),
+    ...(providersToTry[0] !== provider ? [`${providerCatalog[provider].name} is not configured`] : []),
+  ];
+  let fallbackCause = notices.join("; ");
 
   for (const [index, currentProvider] of providersToTry.entries()) {
     const key = process.env[providerCatalog[currentProvider].key];
@@ -157,10 +159,14 @@ export async function POST(request: NextRequest) {
         return sseError(lastError);
       }
 
-      const fallbackNotice = currentProvider === provider
-        ? undefined
-        : `${fallbackCause || `${providerCatalog[provider].name} is unavailable`}; continuing with ${providerCatalog[currentProvider].name}.`;
-      return new Response(normalizeStream(upstream, currentProvider, fallbackNotice), { headers: streamHeaders });
+      if (currentProvider !== provider) {
+        const providerNotice = `${fallbackCause || `${providerCatalog[provider].name} is unavailable`}; continuing with ${providerCatalog[currentProvider].name}.`;
+        notices.splice(0, notices.length, providerNotice);
+      }
+      const notice = notices.join("; ") || undefined;
+      return new Response(normalizeStream(upstream, currentProvider, notice), {
+        headers: { ...streamHeaders, ...rateLimitHeaders(rateLimit.distributed, rateLimit.degraded) },
+      });
     } catch (error) {
       if (request.signal.aborted) return sseError("Chat request was cancelled.");
       lastError = error instanceof Error && error.name === "TimeoutError"

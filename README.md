@@ -107,5 +107,5 @@ npm.cmd run build
 - Account-synced history, preferences, plugin settings, saved extracted text, and shared rate limits require GitHub OAuth, PostgreSQL, and applied migrations. Guests keep history/preferences/plugins in their browser; guest uploads are temporary.
 - The agent can only call its bounded registered tools. It never executes arbitrary plugin or uploaded code; catalog entries without implementations remain informational.
 - Uploaded binaries are not retained. For signed-in users with PostgreSQL, extracted text (up to 100,000 characters) and metadata are stored and may be linked to a conversation.
-- Without PostgreSQL, rate limiting falls back to per-instance memory and is not globally consistent across Vercel instances.
+- Without PostgreSQL, or before the `ApiRateLimit` table migration is applied, rate limiting uses per-instance memory and is not globally consistent across Vercel instances. The temporary migration fallback is logged and marked in response headers/SSE notices.
 - Vercel free-tier limits, provider quotas, and pricing can change; check current terms before production use.

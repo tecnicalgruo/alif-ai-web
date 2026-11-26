@@ -13,7 +13,7 @@
 - Bounded LLM planner and multi-step tool loop using OpenRouter/xAI-compatible function calling
 - User-approved calculator, optional Tavily web search, and supplied-text summarizer tools
 - Saved extracted document text, owner-scoped file operations, and conversation linking
-- PostgreSQL-backed shared rate-limit buckets, with explicit per-instance fallback when no database is configured
+- PostgreSQL-backed shared rate-limit buckets, with a logged, response-marked per-instance fallback until the new migration is applied
 - Memory deletion controls for local and authenticated database history
 - PostgreSQL connection status endpoint and Prisma singleton
 - Tavily search route with validated input and explicit provider failures
