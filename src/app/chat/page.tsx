@@ -13,24 +13,41 @@ import {
   type ChatMessage,
   type ConversationRecord,
 } from "@/lib/chat-storage";
+import {
+  defaultAccountPreferences,
+  readLocalAccountPreferences,
+  saveLocalAccountPreferences,
+} from "@/lib/account-preferences";
 
 type ProviderStatus = { id: string; name: string; model: string; configured: boolean };
 type SessionStatus = { authenticated: boolean; databaseConfigured: boolean };
+type ChatAttachment = { name: string; text: string; fileId?: string };
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [provider, setProvider] = useState("openrouter");
+  const [language, setLanguage] = useState(defaultAccountPreferences.language);
+  const [autoRead, setAutoRead] = useState(defaultAccountPreferences.autoRead);
+  const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [session, setSession] = useState<SessionStatus>({ authenticated: false, databaseConfigured: false });
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const controller = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const conversationId = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      const localPreferences = readLocalAccountPreferences();
+      setProvider(localPreferences.preferredProvider);
+      setLanguage(localPreferences.language);
+      setAutoRead(localPreferences.autoRead);
+    });
     Promise.resolve().then(() => {
       try {
         const conversations = readLocalConversations();
@@ -56,6 +73,20 @@ export default function ChatPage() {
       });
     }).catch(() => {
       if (active) setNotice("Could not load account or model status.");
+    });
+    fetch("/api/preferences").then((response) => {
+      if (!response.ok) throw new Error("Could not load account preferences.");
+      return response.json();
+    }).then((preferenceStatus) => {
+      if (!active) return;
+      if (preferenceStatus.synced) {
+        setProvider(preferenceStatus.preferences.preferredProvider);
+        setLanguage(preferenceStatus.preferences.language);
+        setAutoRead(preferenceStatus.preferences.autoRead);
+        saveLocalAccountPreferences(preferenceStatus.preferences);
+      }
+    }).catch(() => {
+      if (active) setNotice("Using browser-saved preferences; account preferences could not be loaded.");
     });
 
     return () => { active = false; };
@@ -113,11 +144,16 @@ export default function ChatPage() {
   }
 
   async function send() {
-    const text = input.trim();
+    const typedText = input.trim();
+    const currentAttachment = attachment;
+    const text = currentAttachment
+      ? `${typedText || "Please analyze this document."}\n\n[Attached document: ${currentAttachment.name}]\n${currentAttachment.text}`
+      : typedText;
     if (!text || loading) return;
     const next: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages([...next, { role: "assistant", content: "" }]);
     setInput("");
+    setAttachment(null);
     setLoading(true);
     setNotice("");
     controller.current = new AbortController();
@@ -126,7 +162,7 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, provider }),
+        body: JSON.stringify({ messages: next, provider, language }),
         signal: controller.current.signal,
       });
       if (!response.ok) throw new Error(`Chat request failed (${response.status}).`);
@@ -171,7 +207,27 @@ export default function ChatPage() {
         if (event.text) assistantText += event.text;
       }
       if (pendingText || assistantText) flushText();
-      if (assistantText) await persistConversation([...next, { role: "assistant", content: assistantText }]);
+      if (assistantText) {
+        await persistConversation([...next, { role: "assistant", content: assistantText }]);
+        if (currentAttachment?.fileId && session.authenticated && session.databaseConfigured && conversationId.current) {
+          try {
+            const linkResponse = await fetch("/api/files", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileId: currentAttachment.fileId, conversationId: conversationId.current }),
+            });
+            if (!linkResponse.ok) setNotice("Chat saved, but the document could not be linked to it.");
+          } catch {
+            setNotice("Chat saved, but document linking is unavailable.");
+          }
+        }
+        if (autoRead && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const speech = new SpeechSynthesisUtterance(assistantText);
+          speech.lang = language === "bn" ? "bn-BD" : "en-US";
+          window.speechSynthesis.speak(speech);
+        }
+      }
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
         const message = error instanceof Error ? error.message : "Chat request failed.";
@@ -239,9 +295,58 @@ export default function ChatPage() {
   function newChat() {
     stopVoice();
     conversationId.current = null;
+    setAttachment(null);
     setActiveConversationId("");
     setMessages([]);
     setNotice("");
+  }
+
+  async function attachFile(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      setNotice("File exceeds the 4 MB upload limit.");
+      return;
+    }
+    setNotice("Extracting document text...");
+    const form = new FormData();
+    form.set("file", file);
+    try {
+      const response = await fetch("/api/files", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not read this document.");
+      setAttachment({
+        name: data.name,
+        text: String(data.text).slice(0, 20_000),
+        ...(data.file?.id ? { fileId: data.file.id } : {}),
+      });
+      setNotice(data.stored ? "Document ready and saved to your account." : "Document ready for this chat only.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not read this document.");
+    }
+  }
+
+  async function changeProvider(value: string) {
+    if (!["gemini", "grok", "openrouter"].includes(value)) return;
+    const updated = {
+      ...readLocalAccountPreferences(),
+      preferredProvider: value as "gemini" | "grok" | "openrouter",
+    };
+    setProvider(updated.preferredProvider);
+    saveLocalAccountPreferences(updated);
+    if (session.authenticated && session.databaseConfigured) {
+      try {
+        const response = await fetch("/api/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updated),
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          setNotice(data.error ?? "Could not sync provider preference.");
+        }
+      } catch {
+        setNotice("Provider preference saved locally; account sync failed.");
+      }
+    }
   }
 
   return (
@@ -255,7 +360,7 @@ export default function ChatPage() {
           <Link href="/history" className="rounded-lg border border-white/10 px-3 py-2 text-sm">History</Link>
           {!session.authenticated && <Link href="/login" className="rounded-lg border border-white/10 px-3 py-2 text-sm">Sign in</Link>}
           <button onClick={newChat} className="rounded-lg border border-white/10 px-3 py-2 text-sm">New chat</button>
-          <select value={provider} onChange={(event) => setProvider(event.target.value)} className="max-w-44 rounded-lg border border-white/10 bg-[#101d31] px-3 py-2 text-sm outline-none">
+          <select value={provider} onChange={(event) => void changeProvider(event.target.value)} className="max-w-44 rounded-lg border border-white/10 bg-[#101d31] px-3 py-2 text-sm outline-none">
             {providers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.configured ? "" : " — not configured"}</option>)}
           </select>
         </div>
@@ -279,8 +384,11 @@ export default function ChatPage() {
         </div>
         <div className="pb-5">
           {notice && <p role="status" className="mb-2 text-xs text-slate-400">{notice}</p>}
+          {attachment && <div className="mb-2 flex items-center justify-between rounded-lg border border-violet-400/20 bg-violet-400/5 px-3 py-2 text-xs text-violet-100"><span>Attached: {attachment.name} · text included with your next message</span><button onClick={() => setAttachment(null)} aria-label="Remove attached document">Remove</button></div>}
+          <input ref={fileInput} type="file" accept=".pdf,.txt,.docx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void attachFile(file); event.target.value = ""; }} />
           <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#101d31] p-2">
             <textarea rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="Message ALIF AI..." className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 outline-none" />
+            <button onClick={() => fileInput.current?.click()} title="Attach PDF, TXT, or DOCX" className="h-12 rounded-xl border border-white/10 px-3 text-slate-300">Attach</button>
             <button onClick={startVoiceInput} title="Voice input" className="h-12 rounded-xl border border-white/10 px-3 text-slate-300">Mic</button>
             {loading ? <button onClick={() => controller.current?.abort()} className="h-12 rounded-xl bg-red-500/20 px-4 text-red-300">Stop</button> : <button onClick={() => void send()} className="h-12 rounded-xl bg-blue-600 px-5 font-semibold hover:bg-blue-500">Send</button>}
           </div>

@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  defaultAccountPreferences,
+  readLocalAccountPreferences,
+  saveLocalAccountPreferences,
+  type AccountPreferences,
+} from "@/lib/account-preferences";
 
 type SettingsStatus = {
   authenticated: boolean;
@@ -18,6 +24,8 @@ export default function SettingsPage() {
   const [database, setDatabase] = useState<DatabaseStatus | null>(null);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [notice, setNotice] = useState("");
+  const [preferences, setPreferences] = useState<AccountPreferences>(defaultAccountPreferences);
+  const [savingPreferences, setSavingPreferences] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -29,7 +37,36 @@ export default function SettingsPage() {
       setDatabase(databaseStatus);
       setProviders(providerStatus.providers ?? []);
     }).catch(() => setNotice("Could not load configuration status."));
+    fetch("/api/preferences").then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not load account preferences.");
+      setPreferences(data.synced ? data.preferences : readLocalAccountPreferences());
+    }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not load preferences."));
   }, []);
+
+  async function savePreferences() {
+    setSavingPreferences(true);
+    setNotice("");
+    try {
+      if (session?.authenticated && database?.connected) {
+        const response = await fetch("/api/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(preferences),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Could not save preferences.");
+        setNotice("Preferences saved to your account.");
+      } else {
+        saveLocalAccountPreferences(preferences);
+        setNotice("Preferences saved in this browser. Sign in and configure PostgreSQL to sync them.");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not save preferences.");
+    } finally {
+      setSavingPreferences(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#08111f] px-5 py-8 text-white">
@@ -53,6 +90,26 @@ export default function SettingsPage() {
             <h2 className="font-semibold">Account</h2>
             <p className="mt-1 text-sm text-slate-400">{session?.authenticated ? `Signed in${session.user?.name ? ` as ${session.user.name}` : ""}.` : session?.githubConfigured ? "Sign in to sync conversation history." : "GitHub OAuth and AUTH_SECRET must be configured to enable sign-in."}</p>
             {!session?.authenticated && session?.githubConfigured && <Link href="/login" className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold">Sign in with GitHub</Link>}
+          </article>
+          <article className="rounded-2xl border border-white/8 bg-[#101d31] p-5">
+            <h2 className="font-semibold">Preferences</h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm text-slate-300">Default AI provider
+                <select value={preferences.preferredProvider} onChange={(event) => setPreferences({ ...preferences, preferredProvider: event.target.value as AccountPreferences["preferredProvider"] })} className="mt-2 w-full rounded-lg border border-white/10 bg-[#0b1526] px-3 py-2">
+                  {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}{provider.configured ? "" : " (not configured)"}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">Response language
+                <select value={preferences.language} onChange={(event) => setPreferences({ ...preferences, language: event.target.value as AccountPreferences["language"] })} className="mt-2 w-full rounded-lg border border-white/10 bg-[#0b1526] px-3 py-2">
+                  <option value="en">English</option><option value="bn">বাংলা</option>
+                </select>
+              </label>
+            </div>
+            <label className="mt-4 flex items-center gap-3 text-sm text-slate-300">
+              <input type="checkbox" checked={preferences.autoRead} onChange={(event) => setPreferences({ ...preferences, autoRead: event.target.checked })} />
+              Read AI replies aloud
+            </label>
+            <button disabled={savingPreferences} onClick={() => void savePreferences()} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">{savingPreferences ? "Saving..." : "Save preferences"}</button>
           </article>
           <div className="grid gap-3 sm:grid-cols-2">
             <Link href="/history" className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm">Chat history</Link>

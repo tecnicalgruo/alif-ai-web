@@ -8,26 +8,27 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  email          String          @unique
-  name           String?
-  conversations  Conversation[]
-  preferences    UserPreference[]
-  agentTasks     AgentTask[]
-  uploadedFiles  UploadedFile[]
-  pluginConfigs  PluginConfiguration[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id            String                @id @default(cuid())
+  email         String                @unique
+  name          String?
+  conversations Conversation[]
+  preferences   UserPreference[]
+  agentTasks    AgentTask[]
+  uploadedFiles UploadedFile[]
+  pluginConfigs PluginConfiguration[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
+  id        String         @id @default(cuid())
   title     String
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  Message[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  files     UploadedFile[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 }
 
 model Message {
@@ -60,15 +61,15 @@ model UserPreference {
 }
 
 model AgentTask {
-  id        String               @id @default(cuid())
+  id        String              @id @default(cuid())
   userId    String
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   objective String
-  status    String               @default("pending")
+  status    String              @default("pending")
   plan      Json?
   logs      AgentExecutionLog[]
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 }
 
 model AgentExecutionLog {
@@ -82,11 +83,11 @@ model AgentExecutionLog {
 }
 
 model Plugin {
-  id           String                 @id @default(cuid())
-  slug         String                 @unique
-  name         String
-  description  String
-  enabled      Boolean                @default(true)
+  id             String                @id @default(cuid())
+  slug           String                @unique
+  name           String
+  description    String
+  enabled        Boolean               @default(true)
   configurations PluginConfiguration[]
 }
 
@@ -102,12 +103,27 @@ model PluginConfiguration {
 }
 
 model UploadedFile {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  mimeType  String
-  size      Int
-  storageKey String
-  createdAt DateTime @default(now())
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  name           String
+  mimeType       String
+  size           Int
+  storageKey     String
+  extractedText  String        @db.Text
+  createdAt      DateTime      @default(now())
+
+  @@index([conversationId])
+}
+
+model ApiRateLimit {
+  scope       String
+  subjectHash String
+  windowStart DateTime
+  count       Int      @default(1)
+
+  @@id([scope, subjectHash, windowStart])
+  @@index([windowStart])
 }

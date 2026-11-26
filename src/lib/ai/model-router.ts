@@ -11,3 +11,9 @@ export function getConfiguredProviders() {
     Boolean(process.env[providerCatalog[provider].key]),
   );
 }
+
+export function getProviderFallbackOrder(preferred: ProviderId, configured: ProviderId[]) {
+  return configured.includes(preferred)
+    ? [preferred, ...configured.filter((provider) => provider !== preferred)]
+    : configured;
+}

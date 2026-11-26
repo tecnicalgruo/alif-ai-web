@@ -20,16 +20,49 @@ export default function PluginsPage() {
   const [searchAnswer, setSearchAnswer] = useState("");
   const [notice, setNotice] = useState("");
   const [searching, setSearching] = useState(false);
+  const [preferencesSynced, setPreferencesSynced] = useState(false);
 
   useEffect(() => {
     fetch("/api/plugins")
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load plugin list.");
         const data = await response.json();
-        setPlugins(data.plugins ?? []);
+        const saved = data.synced ? null : localStorage.getItem("alif-ai-plugin-preferences");
+        const localSettings = saved ? JSON.parse(saved) as Record<string, boolean> : {};
+        setPreferencesSynced(Boolean(data.synced));
+        setPlugins((data.plugins ?? []).map((plugin: Plugin) => ({
+          ...plugin,
+          enabled: data.synced ? plugin.enabled : localSettings[plugin.slug] ?? plugin.enabled,
+        })));
       })
       .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Plugin list is unavailable."));
   }, []);
+
+  async function togglePlugin(slug: string) {
+    const plugin = plugins.find((item) => item.slug === slug);
+    if (!plugin) return;
+    const enabled = !plugin.enabled;
+    setPlugins((current) => current.map((item) => item.slug === slug ? { ...item, enabled } : item));
+
+    try {
+      if (preferencesSynced) {
+        const response = await fetch("/api/plugins", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, enabled }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Could not save plugin preference.");
+      } else {
+        const settings = Object.fromEntries(plugins.map((item) => [item.slug, item.slug === slug ? enabled : item.enabled]));
+        localStorage.setItem("alif-ai-plugin-preferences", JSON.stringify(settings));
+      }
+      setNotice(preferencesSynced ? "Plugin preference saved to your account." : "Plugin preference saved in this browser.");
+    } catch (error) {
+      setPlugins((current) => current.map((item) => item.slug === slug ? { ...item, enabled: plugin.enabled } : item));
+      setNotice(error instanceof Error ? error.message : "Could not save plugin preference.");
+    }
+  }
 
   async function search() {
     if (query.trim().length < 2 || searching) return;
@@ -59,7 +92,7 @@ export default function PluginsPage() {
       <div className="mx-auto max-w-5xl">
         <Link href="/" className="text-sm text-blue-400">← Dashboard</Link>
         <h1 className="mt-2 text-3xl font-bold">Plugin Marketplace</h1>
-        <p className="mt-2 text-slate-400">Registered tools and their configuration status.</p>
+        <p className="mt-2 text-slate-400">Enable or disable tools for your workspace. Account settings sync after sign-in with PostgreSQL configured.</p>
         <div className="mt-8 flex gap-2">
           <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void search(); }} placeholder="Search the web..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#101d31] px-4 py-3 outline-none" />
           <button onClick={() => void search()} disabled={searching || query.trim().length < 2} className="rounded-xl bg-blue-600 px-5 font-semibold disabled:opacity-50">{searching ? "Searching..." : "Search"}</button>
@@ -78,6 +111,7 @@ export default function PluginsPage() {
               </div>
               <h2 className="font-semibold">{plugin.name}</h2>
               <p className="mt-2 text-sm text-slate-400">{plugin.description}</p>
+              <button onClick={() => void togglePlugin(plugin.slug)} aria-pressed={plugin.enabled} className={`mt-4 rounded-lg px-3 py-2 text-sm font-medium ${plugin.enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-white/8 text-slate-300"}`}>{plugin.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}</button>
             </article>
           ))}
         </div>

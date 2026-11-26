@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatRequestSchema, conversationSaveSchema } from "./validation";
+import { agentRequestSchema, chatRequestSchema, conversationSaveSchema } from "./validation";
 
 describe("chat validation", () => {
   it("accepts a valid Bengali chat request", () => {
@@ -25,6 +25,19 @@ describe("chat validation", () => {
     expect(conversationSaveSchema.safeParse({
       title: "Chat",
       messages: Array.from({ length: 101 }, () => ({ role: "user", content: "message" })),
+    }).success).toBe(false);
+  });
+
+  it("defaults the agent to no approved tools and validates explicit approvals", () => {
+    expect(agentRequestSchema.parse({ objective: "Summarize this text" }).approvedTools).toEqual([]);
+    expect(agentRequestSchema.safeParse({
+      objective: "Find current weather",
+      approvedTools: ["web_search"],
+      language: "bn",
+    }).success).toBe(true);
+    expect(agentRequestSchema.safeParse({
+      objective: "Find current weather",
+      approvedTools: ["execute_code"],
     }).success).toBe(false);
   });
 });

@@ -11,11 +11,14 @@ ALIF AI is a responsive multi-model AI assistant built with Next.js App Router, 
 - GitHub OAuth sign-in using Auth.js JWT sessions
 - Browser-local chat history for guests
 - Account-owned PostgreSQL conversation history for signed-in users
+- Per-account default provider, response language, and speech preferences
+- Persistent per-account plugin settings, with browser-local guest settings
 - Conversation deletion and memory controls
 - Browser speech recognition and speech playback where supported
 - Tavily web search API route and plugin discovery registry
-- Server-side PDF, TXT, and DOCX text extraction (4 MB upload limit for Vercel compatibility)
-- Bounded calculator tool, agent workspace, and explicit tool approval
+- Server-side PDF, TXT, and DOCX text extraction (4 MB upload limit); extracted text can be saved and linked to a conversation
+- Bounded multi-step AI agent with explicit per-tool approval, calculator, web search, and text summarization
+- PostgreSQL-backed distributed rate limits when a database is configured
 - Zod request validation, API-key isolation, and security headers
 
 ## Local setup
@@ -26,7 +29,7 @@ Use Node.js 20.9 or later. Copy the environment template:
 Copy-Item .env.example .env.local
 ```
 
-Configure at least one model provider:
+Configure at least one model provider for chat:
 
 - `GEMINI_API_KEY`: Google AI Studio API key
 - `XAI_API_KEY`: xAI API key
@@ -49,7 +52,7 @@ https://your-domain.example/api/auth/callback/github
 ```
 
 For local development, use `http://localhost:3000/api/auth/callback/github`.
-Without GitHub OAuth credentials, chat still works and history stays in the browser.
+The agent planner requires `OPENROUTER_API_KEY` or `XAI_API_KEY`; web search additionally requires `WEB_SEARCH_API_KEY`. Without GitHub OAuth credentials, chat still works and history/preferences remain in the browser.
 
 Install and run:
 
@@ -62,7 +65,7 @@ Open `http://localhost:3000`.
 
 ## PostgreSQL and migrations
 
-The UI and guest-local history work without a database. Account-synced history requires PostgreSQL, GitHub OAuth, and the initial Prisma migration:
+The UI and guest-local history work without a database. Account-synced history, preferences, plugin settings, saved extracted text, and shared rate limits require PostgreSQL, GitHub OAuth, and all checked-in Prisma migrations:
 
 ```powershell
 npx.cmd prisma generate
@@ -87,7 +90,7 @@ GITHUB_SECRET                      (optional; GitHub OAuth)
 APP_URL=https://alif-ai-web.vercel.app
 ```
 
-If GitHub OAuth is enabled, configure its callback to `https://alif-ai-web.vercel.app/api/auth/callback/github`. Never paste secrets into chat or source control. Add a database and run migrations before relying on cloud conversation history.
+If GitHub OAuth is enabled, configure its callback to `https://alif-ai-web.vercel.app/api/auth/callback/github`. Never paste secrets into chat or source control. Run migrations before enabling `DATABASE_URL` in Production; database-backed routes return an explicit service error until migrations are applied.
 
 ## Validation
 
@@ -100,10 +103,9 @@ npm.cmd run build
 ## Current boundaries
 
 - Provider keys must be added by the project owner in Vercel; configured keys are never sent to browsers.
-- Tavily search is unavailable until `WEB_SEARCH_API_KEY` is set.
-- Cloud chat history is unavailable until GitHub OAuth and PostgreSQL are configured and migrated; guests retain browser-local history.
-- The agent currently runs bounded registered tools, not arbitrary plugin or uploaded code.
-- Plugin catalog entries are discovery metadata; unimplemented providers are marked as requiring configuration.
-- File text extraction is request-scoped and is not stored in PostgreSQL.
-- In-memory rate limiting is per serverless instance; use a distributed rate-limit store before expecting consistent limits across Vercel instances.
+- Tavily search is unavailable until `WEB_SEARCH_API_KEY` is set. The agent only searches the web when the user explicitly approves that tool for the task.
+- Account-synced history, preferences, plugin settings, saved extracted text, and shared rate limits require GitHub OAuth, PostgreSQL, and applied migrations. Guests keep history/preferences/plugins in their browser; guest uploads are temporary.
+- The agent can only call its bounded registered tools. It never executes arbitrary plugin or uploaded code; catalog entries without implementations remain informational.
+- Uploaded binaries are not retained. For signed-in users with PostgreSQL, extracted text (up to 100,000 characters) and metadata are stored and may be linked to a conversation.
+- Without PostgreSQL, rate limiting falls back to per-instance memory and is not globally consistent across Vercel instances.
 - Vercel free-tier limits, provider quotas, and pricing can change; check current terms before production use.

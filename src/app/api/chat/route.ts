@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { providerCatalog, type ProviderId } from "@/lib/ai/model-router";
+import { getProviderFallbackOrder, providerCatalog, type ProviderId } from "@/lib/ai/model-router";
 import { parseProviderEvent } from "@/lib/ai/provider-stream";
-import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
 import { chatRequestSchema } from "@/lib/validation";
 
 const streamHeaders = {
@@ -73,7 +73,8 @@ function normalizeStream(upstream: Response, provider: ProviderId, fallbackNotic
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimit = consumeRateLimit(request, "chat", 20, 60_000);
+  const rateLimit = await consumeDistributedRateLimit(request, "chat", 20, 60_000);
+  if (rateLimit.unavailable) return rateLimitUnavailableResponse();
   if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
@@ -88,21 +89,24 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid chat request", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { messages, provider: requestedProvider, model } = parsed.data;
+  const { messages, provider: requestedProvider, model, language } = parsed.data;
+  const languageInstruction = language === "bn"
+    ? "Reply in Bengali unless the user explicitly requests another language."
+    : "Reply in English unless the user explicitly requests another language.";
   const provider: ProviderId = requestedProvider
     ?? (["gemini", "grok", "openrouter"] as ProviderId[])
       .find((id) => Boolean(process.env[providerCatalog[id].key]))
     ?? "gemini";
-  const preferredKey = process.env[providerCatalog[provider].key];
-  if (!preferredKey) {
-    return sseError(`${providerCatalog[provider].name} is not configured. Add ${providerCatalog[provider].key} to Vercel environment variables.`);
-  }
-
   const configuredProviders = (["openrouter", "gemini", "grok"] as ProviderId[])
     .filter((id) => Boolean(process.env[providerCatalog[id].key]));
-  const providersToTry = [provider, ...configuredProviders.filter((id) => id !== provider)];
+  const providersToTry = getProviderFallbackOrder(provider, configuredProviders);
+  if (!providersToTry.length) {
+    return sseError("No AI provider is configured. Add at least one provider API key to the server environment.");
+  }
   let lastError = `Could not connect to ${providerCatalog[provider].name}.`;
-  let fallbackCause = "";
+  let fallbackCause = providersToTry[0] === provider
+    ? ""
+    : `${providerCatalog[provider].name} is not configured`;
 
   for (const [index, currentProvider] of providersToTry.entries()) {
     const key = process.env[providerCatalog[currentProvider].key];
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                system_instruction: { parts: [{ text: languageInstruction }] },
                 contents: messages.map((message) => ({
                   role: message.role === "assistant" ? "model" : "user",
                   parts: [{ text: message.content }],
@@ -136,7 +141,7 @@ export async function POST(request: NextRequest) {
             },
             body: JSON.stringify({
               model: currentProvider === provider ? model ?? providerCatalog[currentProvider].model : providerCatalog[currentProvider].model,
-              messages,
+              messages: [{ role: "system", content: languageInstruction }, ...messages],
               stream: true,
             }),
             signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),

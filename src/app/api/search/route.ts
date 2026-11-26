@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { consumeDistributedRateLimit, rateLimitResponse, rateLimitUnavailableResponse } from "@/lib/security/rate-limit";
+import { searchTavily } from "@/lib/search/tavily";
 
 const schema = z.object({ query: z.string().trim().min(2).max(500), maxResults: z.number().int().min(1).max(10).default(5) });
 
 export async function POST(request: NextRequest) {
-  const rateLimit = consumeRateLimit(request, "search", 10, 60_000);
+  const rateLimit = await consumeDistributedRateLimit(request, "search", 10, 60_000);
+  if (rateLimit.unavailable) return rateLimitUnavailableResponse();
   if (!rateLimit.allowed) return rateLimitResponse(rateLimit.retryAfterSeconds);
 
   try {
@@ -22,27 +24,10 @@ export async function POST(request: NextRequest) {
     if (!process.env.WEB_SEARCH_API_KEY) {
       return Response.json({ error: "Web search is not configured", configured: false }, { status: 503 });
     }
-    const upstream = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: process.env.WEB_SEARCH_API_KEY,
-        query: parsed.data.query,
-        max_results: parsed.data.maxResults,
-        include_answer: true,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-
-    const detail = await upstream.text();
-    if (!upstream.ok) {
-      return Response.json(
-        { error: "Search provider request failed", status: upstream.status, detail: detail.slice(0, 300) },
-        { status: 502 },
-      );
-    }
-    return Response.json(JSON.parse(detail));
+    const result = await searchTavily(parsed.data.query, parsed.data.maxResults, request.signal);
+    return Response.json(result);
   } catch (error) {
+    console.error("Search request failed:", error);
     return Response.json({
       error: "Search request could not be completed",
       detail: error instanceof Error ? error.message : "Unexpected search runtime error",
