@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
     .filter((id) => Boolean(process.env[providerCatalog[id].key]));
   const providersToTry = [provider, ...configuredProviders.filter((id) => id !== provider)];
   let lastError = `Could not connect to ${providerCatalog[provider].name}.`;
+  let fallbackCause = "";
 
   for (const [index, currentProvider] of providersToTry.entries()) {
     const key = process.env[providerCatalog[currentProvider].key];
@@ -144,20 +145,27 @@ export async function POST(request: NextRequest) {
       if (!upstream.ok) {
         const detail = await upstream.text();
         lastError = `${providerCatalog[currentProvider].name} failed (${upstream.status}). ${detail.slice(0, 300)}`;
-        if (index < providersToTry.length - 1 && [408, 429, 500, 502, 503, 504].includes(upstream.status)) continue;
+        if (index < providersToTry.length - 1) {
+          fallbackCause = `${providerCatalog[currentProvider].name} returned ${upstream.status}`;
+          continue;
+        }
         return sseError(lastError);
       }
 
       const fallbackNotice = currentProvider === provider
         ? undefined
-        : `${providerCatalog[provider].name} is busy; continuing with ${providerCatalog[currentProvider].name}.`;
+        : `${fallbackCause || `${providerCatalog[provider].name} is unavailable`}; continuing with ${providerCatalog[currentProvider].name}.`;
       return new Response(normalizeStream(upstream, currentProvider, fallbackNotice), { headers: streamHeaders });
     } catch (error) {
       if (request.signal.aborted) return sseError("Chat request was cancelled.");
       lastError = error instanceof Error && error.name === "TimeoutError"
         ? `${providerCatalog[currentProvider].name} timed out.`
         : `Could not connect to ${providerCatalog[currentProvider].name}.`;
-      if (index === providersToTry.length - 1) return sseError(lastError);
+      if (index < providersToTry.length - 1) {
+        fallbackCause = lastError.replace(/\.$/, "");
+        continue;
+      }
+      return sseError(lastError);
     }
   }
 
