@@ -154,8 +154,9 @@ export default function ChatPage() {
         buffer = lines.pop() ?? "";
         for (const line of lines) {
           if (!line.startsWith("data:")) continue;
-          const event = JSON.parse(line.slice(5).trim()) as { text?: string; error?: string };
+          const event = JSON.parse(line.slice(5).trim()) as { text?: string; error?: string; notice?: string };
           if (event.error) throw new Error(event.error);
+          if (event.notice) setNotice(event.notice);
           if (event.text) {
             assistantText += event.text;
             pendingText += event.text;
@@ -164,8 +165,9 @@ export default function ChatPage() {
         }
       }
       if (buffer.startsWith("data:")) {
-        const event = JSON.parse(buffer.slice(5).trim()) as { text?: string; error?: string };
+        const event = JSON.parse(buffer.slice(5).trim()) as { text?: string; error?: string; notice?: string };
         if (event.error) throw new Error(event.error);
+        if (event.notice) setNotice(event.notice);
         if (event.text) assistantText += event.text;
       }
       if (pendingText || assistantText) flushText();

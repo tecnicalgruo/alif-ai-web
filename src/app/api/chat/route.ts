@@ -16,7 +16,7 @@ function sseError(message: string) {
   });
 }
 
-function normalizeStream(upstream: Response, provider: ProviderId) {
+function normalizeStream(upstream: Response, provider: ProviderId, fallbackNotice?: string) {
   if (!upstream.body) throw new Error("The provider returned no response stream.");
 
   const reader = upstream.body.getReader();
@@ -25,6 +25,11 @@ function normalizeStream(upstream: Response, provider: ProviderId) {
   let buffer = "";
 
   return new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (fallbackNotice) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ notice: fallbackNotice })}\n\n`));
+      }
+    },
     async pull(controller) {
       try {
         while (true) {
@@ -88,49 +93,73 @@ export async function POST(request: NextRequest) {
     ?? (["gemini", "grok", "openrouter"] as ProviderId[])
       .find((id) => Boolean(process.env[providerCatalog[id].key]))
     ?? "gemini";
-  const key = process.env[providerCatalog[provider].key];
-
-  if (!key) {
+  const preferredKey = process.env[providerCatalog[provider].key];
+  if (!preferredKey) {
     return sseError(`${providerCatalog[provider].name} is not configured. Add ${providerCatalog[provider].key} to Vercel environment variables.`);
   }
 
-  try {
-    const upstream = provider === "gemini"
-      ? await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model ?? providerCatalog.gemini.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`,
-          {
+  const configuredProviders = (["gemini", "grok", "openrouter"] as ProviderId[])
+    .filter((id) => Boolean(process.env[providerCatalog[id].key]));
+  const providersToTry = [provider, ...configuredProviders.filter((id) => id !== provider)];
+  let lastError = `Could not connect to ${providerCatalog[provider].name}.`;
+
+  for (const [index, currentProvider] of providersToTry.entries()) {
+    const key = process.env[providerCatalog[currentProvider].key];
+    if (!key) continue;
+
+    try {
+      const upstream = currentProvider === "gemini"
+        ? await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentProvider === provider ? model ?? providerCatalog.gemini.model : providerCatalog.gemini.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: messages.map((message) => ({
+                  role: message.role === "assistant" ? "model" : "user",
+                  parts: [{ text: message.content }],
+                })),
+              }),
+              signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
+            },
+          )
+        : await fetch(`${currentProvider === "grok" ? "https://api.x.ai/v1" : "https://openrouter.ai/api/v1"}/chat/completions`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${key}`,
+              ...(currentProvider === "openrouter" ? {
+                "HTTP-Referer": process.env.APP_URL ?? "https://alif-ai-web.vercel.app",
+                "X-Title": "ALIF AI",
+              } : {}),
+            },
             body: JSON.stringify({
-              contents: messages.map((message) => ({
-                role: message.role === "assistant" ? "model" : "user",
-                parts: [{ text: message.content }],
-              })),
+              model: currentProvider === provider ? model ?? providerCatalog[currentProvider].model : providerCatalog[currentProvider].model,
+              messages,
+              stream: true,
             }),
-            signal: AbortSignal.any([request.signal, AbortSignal.timeout(90_000)]),
-          },
-        )
-      : await fetch(`${provider === "grok" ? "https://api.x.ai/v1" : "https://openrouter.ai/api/v1"}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key}`,
-            ...(provider === "openrouter" ? {
-              "HTTP-Referer": process.env.APP_URL ?? "https://alif-ai-web.vercel.app",
-              "X-Title": "ALIF AI",
-            } : {}),
-          },
-          body: JSON.stringify({ model: model ?? providerCatalog[provider].model, messages, stream: true }),
-          signal: AbortSignal.any([request.signal, AbortSignal.timeout(90_000)]),
-        });
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
+          });
 
-    if (!upstream.ok) {
-      const detail = await upstream.text();
-      return sseError(`Provider request failed (${upstream.status}). ${detail.slice(0, 400)}`);
+      if (!upstream.ok) {
+        const detail = await upstream.text();
+        lastError = `${providerCatalog[currentProvider].name} failed (${upstream.status}). ${detail.slice(0, 300)}`;
+        if (index < providersToTry.length - 1 && [408, 429, 500, 502, 503, 504].includes(upstream.status)) continue;
+        return sseError(lastError);
+      }
+
+      const fallbackNotice = currentProvider === provider
+        ? undefined
+        : `${providerCatalog[provider].name} is busy; continuing with ${providerCatalog[currentProvider].name}.`;
+      return new Response(normalizeStream(upstream, currentProvider, fallbackNotice), { headers: streamHeaders });
+    } catch (error) {
+      if (request.signal.aborted) return sseError("Chat request was cancelled.");
+      lastError = error instanceof Error && error.name === "TimeoutError"
+        ? `${providerCatalog[currentProvider].name} timed out.`
+        : `Could not connect to ${providerCatalog[currentProvider].name}.`;
+      if (index === providersToTry.length - 1) return sseError(lastError);
     }
-
-    return new Response(normalizeStream(upstream, provider), { headers: streamHeaders });
-  } catch {
-    return sseError(`Could not connect to ${providerCatalog[provider].name}. Check the model key and try again.`);
   }
+
+  return sseError(lastError);
 }
