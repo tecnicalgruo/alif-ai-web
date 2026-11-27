@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type StoredFile = { id: string; name: string; size: number; createdAt: string; conversationId: string | null };
@@ -129,7 +128,7 @@ export default function FilesPage() {
         {canStore && <section className="mt-8"><h2 className="mb-3 text-xl font-semibold">Saved documents</h2>
           {files.length ? <div className="space-y-2">{files.map((file) => <article key={file.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-[#101d31] p-4">
             <div className="min-w-0"><p className="truncate font-medium">{file.name}</p><p className="text-xs text-slate-400">{Math.ceil(file.size / 1024)} KB{file.conversationId ? " · linked to a conversation" : ""}</p></div>
-            <div className="flex shrink-0 gap-2"><button onClick={() => void openFile(file.id)} className="rounded-lg border border-white/10 px-3 py-2 text-sm">Open</button>{conversationId && conversationId !== file.conversationId && <button onClick={() => void linkSavedFile(file.id)} className="rounded-lg border border-violet-400/20 px-3 py-2 text-sm text-violet-300">Link</button>}<button onClick={() => void deleteFile(file.id)} className="rounded-lg border border-red-400/20 px-3 py-2 text-sm text-red-300">Delete</button></div>
+            <div className="flex shrink-0 gap-2"><button onClick={() => void openFile(file.id)} className="min-h-10 rounded-lg border border-white/10 px-3 py-2 text-sm">Open</button>{conversationId && conversationId !== file.conversationId && <button onClick={() => void linkSavedFile(file.id)} className="min-h-10 rounded-lg border border-violet-400/20 px-3 py-2 text-sm text-violet-300">Link</button>}<button onClick={() => void deleteFile(file.id)} className="min-h-10 rounded-lg border border-red-400/20 px-3 py-2 text-sm text-red-300">Delete</button></div>
           </article>)}</div> : <p className="text-sm text-slate-400">No saved documents yet.</p>}
         </section>}
       </div>

@@ -86,23 +86,23 @@ export default function HistoryPage() {
     <main className="min-h-screen bg-[#08111f] px-5 py-8 text-white">
       <div className="mx-auto max-w-4xl">
         <Link href="/" className="text-sm text-blue-400">← Dashboard</Link>
-        <div className="mt-2 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Chat History</h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold sm:text-3xl">Chat History</h1>
           <Link href="/memory" className="rounded-lg border border-white/10 px-3 py-2 text-sm">Memory settings</Link>
         </div>
         {notice && <p role="status" className="mt-5 text-sm text-slate-400">{notice}</p>}
         <div className="mt-6 space-y-3">
           {conversations.map((conversation) => (
             <article key={conversation.id} className="rounded-2xl border border-white/8 bg-[#101d31] p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <h2 className="font-semibold">{conversation.title}</h2>
                   <p className="mt-1 text-xs text-slate-500">{new Date(conversation.updatedAt).toLocaleString()} · {conversation.messages.length} messages</p>
-                  <p className="mt-3 line-clamp-2 whitespace-pre-wrap text-sm text-slate-400">{conversation.messages.at(-1)?.content}</p>
+                  <p className="mt-3 line-clamp-2 break-words whitespace-pre-wrap text-sm text-slate-400">{conversation.messages.at(-1)?.content}</p>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <button onClick={() => { localStorage.setItem("alif-ai-active-conversation", conversation.id); router.push("/chat"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-sm">Open</button>
-                  <button onClick={() => removeLocal(conversation.id)} className="rounded-lg border border-red-400/20 px-3 py-2 text-sm text-red-300">Delete</button>
+                <div className="flex shrink-0 gap-2 sm:self-start">
+                  <button onClick={() => { localStorage.setItem("alif-ai-active-conversation", conversation.id); router.push("/chat"); }} className="min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm">Open</button>
+                  <button onClick={() => removeLocal(conversation.id)} className="min-h-11 rounded-lg border border-red-400/20 px-4 py-2 text-sm text-red-300">Delete</button>
                 </div>
               </div>
             </article>

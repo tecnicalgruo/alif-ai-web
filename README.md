@@ -5,6 +5,7 @@ ALIF AI is a responsive multi-model AI assistant built with Next.js App Router, 
 ## Features
 
 - Dark responsive dashboard and Bengali/English chat UI
+- Mobile-friendly navigation and chat controls with horizontally scrollable, color-styled code blocks
 - Server-side Gemini, xAI Grok, and OpenRouter chat adapters
 - Provider selection and server-sent event responses
 - OpenRouter-first default with automatic failover to configured Gemini/Grok providers

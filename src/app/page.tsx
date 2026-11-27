@@ -1,6 +1,17 @@
 import Link from "next/link";
 
 export default function Home() {
+  const navigation = [
+    ["Dashboard", "/"],
+    ["AI Chat", "/chat"],
+    ["History", "/history"],
+    ["Agent", "/agent"],
+    ["Plugins", "/plugins"],
+    ["Files", "/files"],
+    ["Memory", "/memory"],
+    ["Settings", "/settings"],
+  ];
+
   return (
     <main className="min-h-screen bg-[#08111f] text-white lg:pl-72">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-white/8 bg-[#0b1526] p-5 lg:block">
@@ -10,15 +21,18 @@ export default function Home() {
         </div>
         <Link href="/chat" className="mb-6 flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 font-semibold hover:bg-blue-500">＋ New Chat</Link>
         <nav className="space-y-2 text-sm text-slate-300">
-          {[["Dashboard", "/"], ["AI Chat", "/chat"], ["Chat History", "/history"], ["AI Agent", "/agent"], ["Plugins", "/plugins"], ["Files", "/files"], ["Memory", "/memory"], ["Settings", "/settings"]].map(([label, href]) =>
+          {navigation.map(([label, href]) =>
             <Link key={href} href={href} className="block rounded-lg px-3 py-2.5 hover:bg-white/5">{label}</Link>)}
         </nav>
       </aside>
-      <section className="mx-auto max-w-6xl px-6 py-10 lg:px-10">
-        <header className="mb-10 flex items-center justify-between">
-          <div><p className="text-sm text-blue-400">Good morning</p><h1 className="mt-1 text-3xl font-bold">What will you build today?</h1></div>
+      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-10">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 sm:mb-10">
+          <div><p className="text-sm text-blue-400">Good morning</p><h1 className="mt-1 text-2xl font-bold sm:text-3xl">What will you build today?</h1></div>
           <Link href="/chat" className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5">Open Chat</Link>
         </header>
+        <nav aria-label="Mobile navigation" className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+          {navigation.map(([label, href]) => <Link key={href} href={href} className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300">{label}</Link>)}
+        </nav>
         <div className="grid gap-5 md:grid-cols-3">
           {[["Gemini","Google AI Studio","gemini"],["Grok","xAI","grok"],["OpenRouter","Multi-model gateway","openrouter"]].map(([name,sub,id]) =>
             <div key={id} className="rounded-2xl border border-white/8 bg-[#101d31] p-5">

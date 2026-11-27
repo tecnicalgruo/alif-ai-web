@@ -3,6 +3,7 @@
 ## Implemented
 
 - Responsive dashboard, model-selecting chat, markdown output, copy, browser speech input and playback
+- Mobile navigation and compact chat controls; fenced code renders in labeled, copyable, horizontally scrollable color panels
 - Gemini, xAI Grok, and OpenRouter server-side chat adapters
 - Token streaming and OpenRouter-first provider failover for faster chat
 - GitHub OAuth sign-in foundation using JWT sessions

@@ -90,9 +90,12 @@ export async function POST(request: NextRequest) {
   }
 
   const { messages, provider: requestedProvider, model, language } = parsed.data;
-  const languageInstruction = language === "bn"
-    ? "Reply in Bengali unless the user explicitly requests another language."
-    : "Reply in English unless the user explicitly requests another language.";
+  const languageInstruction = [
+    language === "bn"
+      ? "Reply in Bengali unless the user explicitly requests another language."
+      : "Reply in English unless the user explicitly requests another language.",
+    "Whenever you provide HTML, CSS, JavaScript, or Node.js code, format it as a fenced Markdown code block with the correct language label.",
+  ].join(" ");
   const provider: ProviderId = requestedProvider
     ?? (["gemini", "grok", "openrouter"] as ProviderId[])
       .find((id) => Boolean(process.env[providerCatalog[id].key]))
