@@ -2,11 +2,11 @@
 
 ## Integration connector implementation — 2026-11-28
 
-Connector implementation resumed after the user requested continuation. The user has now explicitly approved committing and pushing these validated changes.
+Connector implementation resumed after the user requested continuation. The implementation was committed and pushed to `main` as `f59f049`; Vercel reports the Production deployment as Ready.
 
 ### Changes currently in the worktree
 
-Uncommitted connector work exists in `README.md`, `src/app/agent/page.tsx`, `src/app/api/agent/route.ts`, `src/app/api/plugins/route.ts`, `src/app/plugins/page.tsx`, `src/lib/validation.ts`, and the new `src/app/api/integrations/` and `src/lib/integrations/` files. Preserve these changes when resuming.
+Connector implementation lives in `README.md`, `src/app/agent/page.tsx`, `src/app/api/agent/route.ts`, `src/app/api/plugins/route.ts`, `src/app/plugins/page.tsx`, `src/lib/validation.ts`, `src/app/api/integrations/`, and `src/lib/integrations/`.
 
 Implemented locally:
 
@@ -30,12 +30,15 @@ Remote Desktop Commander remains disconnected because its exact product/vendor/A
 - `npx.cmd tsc --noEmit` passed.
 - `npm.cmd run build` passed; the build includes `/api/integrations`, `/api/integrations/gmail/connect`, and `/api/integrations/gmail/callback`.
 - No live provider connection or OAuth flow was tested because no provider credentials are configured.
+- The production status route returned HTTP 200; `/plugins` returned HTTP 200 with the new external-connections UI; unauthenticated `/api/integrations` correctly returned HTTP 401.
+- The latest Vercel Production build includes the integrations and Gmail OAuth routes and is Ready.
+- Vercel Production has `DATABASE_URL`, `AUTH_SECRET`, GitHub sign-in credentials, and AI provider variables. `INTEGRATION_ENCRYPTION_KEY` is absent, so the existing `AUTH_SECRET` fallback is used. Gmail is not ready for OAuth: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are not configured.
 
 ### Remaining
 
 1. The owner must configure PostgreSQL/migrations, `AUTH_SECRET`, stable `INTEGRATION_ENCRYPTION_KEY`, and Gmail `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` before live use. Set the Gmail OAuth redirect URI to `https://alif-ai-web.vercel.app/api/integrations/gmail/callback`.
 2. Only perform live provider tests after the owner has configured credentials. Never request or record secrets in chat.
-3. Keep provider credentials out of source control and chat. Live Gmail use still requires the owner to configure Google OAuth credentials in Vercel and connect an account from Plugins.
+3. Keep provider credentials out of source control and chat. Live Gmail use still requires the owner to configure Google OAuth credentials in Vercel and connect an account from Plugins. GitHub PAT and Supabase project credentials are connected per user in Plugins.
 
 ## Implemented
 
