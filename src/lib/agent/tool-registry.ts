@@ -8,6 +8,15 @@ export const toolRegistry: ToolDefinition[] = [
   { name: "calculator", description: "Evaluate an arithmetic expression", permissions: "none" },
   { name: "web_search", description: "Search public web sources", permissions: "external" },
   { name: "text_summarizer", description: "Summarize provided text", permissions: "none" },
+  { name: "github_list_repositories", description: "List repositories visible to the connected GitHub account", permissions: "external" },
+  { name: "github_search_issues", description: "Search issues visible to the connected GitHub account", permissions: "external" },
+  { name: "github_create_issue", description: "Create an explicitly approved GitHub issue", permissions: "external" },
+  { name: "supabase_read_rows", description: "Read rows from allowlisted Supabase tables under Row Level Security", permissions: "external" },
+  { name: "supabase_insert_row", description: "Insert an explicitly approved row into an allowlisted Supabase table", permissions: "external" },
+  { name: "supabase_update_rows", description: "Update at most one explicitly approved row in an allowlisted Supabase table", permissions: "external" },
+  { name: "gmail_search_messages", description: "Search the connected user's Gmail messages", permissions: "external" },
+  { name: "gmail_read_message", description: "Read a message from the connected user's Gmail account", permissions: "external" },
+  { name: "gmail_send_message", description: "Send an explicitly approved email from the connected Gmail account", permissions: "external" },
 ];
 
 export function summarizeText(text: string): string {

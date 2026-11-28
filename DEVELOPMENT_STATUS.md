@@ -1,5 +1,42 @@
 # ALIF AI Development Status
 
+## Integration connector implementation — 2026-11-28
+
+Connector implementation resumed after the user requested continuation. The user has now explicitly approved committing and pushing these validated changes.
+
+### Changes currently in the worktree
+
+Uncommitted connector work exists in `README.md`, `src/app/agent/page.tsx`, `src/app/api/agent/route.ts`, `src/app/api/plugins/route.ts`, `src/app/plugins/page.tsx`, `src/lib/validation.ts`, and the new `src/app/api/integrations/` and `src/lib/integrations/` files. Preserve these changes when resuming.
+
+Implemented locally:
+
+- Per-user AES-GCM credential storage using `INTEGRATION_ENCRYPTION_KEY` (or `AUTH_SECRET` as a fallback).
+- Authenticated GitHub PAT and Supabase project connection/disconnection endpoints; credentials are not returned from the status endpoint.
+- Gmail OAuth connect/callback, limited Gmail read/send scopes, access-token refresh, and search/read/send helpers.
+- Agent tools for GitHub repository/issue lookup and issue creation, allowlisted Supabase row reads/inserts/updates, and Gmail search/read/send. No delete or arbitrary SQL tools.
+- Plugin marketplace connection forms and per-tool Agent approvals. External integrations require sign-in, a database, and enabling the matching plugin. External results are excluded from saved agent logs.
+- Focused credential-encryption tests.
+- Gmail OAuth state is bound to the initiating signed-in account; an existing refresh token is preserved if Google omits a replacement on reconnect.
+- Supabase updates require equality filters and cap each request to one affected row.
+- Agent's reported tool registry includes the three providers' bounded tool actions.
+
+Remote Desktop Commander remains disconnected because its exact product/vendor/API is still unidentified. No provider credentials are configured or live integrations tested in this work.
+
+### Validation
+
+- `git diff --check` passed.
+- `npm.cmd test` passed: 20 tests across 6 files.
+- `npm.cmd run lint` passed.
+- `npx.cmd tsc --noEmit` passed.
+- `npm.cmd run build` passed; the build includes `/api/integrations`, `/api/integrations/gmail/connect`, and `/api/integrations/gmail/callback`.
+- No live provider connection or OAuth flow was tested because no provider credentials are configured.
+
+### Remaining
+
+1. The owner must configure PostgreSQL/migrations, `AUTH_SECRET`, stable `INTEGRATION_ENCRYPTION_KEY`, and Gmail `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` before live use. Set the Gmail OAuth redirect URI to `https://alif-ai-web.vercel.app/api/integrations/gmail/callback`.
+2. Only perform live provider tests after the owner has configured credentials. Never request or record secrets in chat.
+3. Keep provider credentials out of source control and chat. Live Gmail use still requires the owner to configure Google OAuth credentials in Vercel and connect an account from Plugins.
+
 ## Implemented
 
 - Responsive dashboard, model-selecting chat, markdown output, copy, browser speech input and playback

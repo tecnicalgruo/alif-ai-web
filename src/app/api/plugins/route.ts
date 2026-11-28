@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAuthenticatedAccount } from "@/lib/database/account";
 import { getPrisma } from "@/lib/database/prisma";
+import { loadIntegration } from "@/lib/integrations/vault";
 import { pluginPreferenceSchema } from "@/lib/validation";
 
 const plugins = [
@@ -17,12 +18,16 @@ const plugins = [
   { slug: "text-summarizer", name: "Text Summarizer", description: "Summarize provided text", enabled: true },
   { slug: "translation", name: "Translation", description: "Translate Bengali and English text", enabled: false },
   { slug: "image-analysis", name: "Image Analysis", description: "Registered; provider not configured", enabled: false },
+  { slug: "github", name: "GitHub", description: "Search repositories and issues; create an issue only when explicitly approved", enabled: false },
+  { slug: "supabase", name: "Supabase", description: "Read approved tables and perform explicitly approved row changes under RLS", enabled: false },
+  { slug: "gmail", name: "Gmail", description: "Search and read messages; send only when explicitly approved", enabled: false },
 ] as const;
 
 export async function GET() {
   const session = await auth();
   const prisma = getPrisma();
   let overrides = new Map<string, boolean>();
+  const connectedIntegrations = new Set<string>();
 
   if (session?.user?.email && prisma) {
     try {
@@ -32,6 +37,14 @@ export async function GET() {
           where: { userId: account.user.id },
           select: { plugin: { select: { slug: true } }, config: true },
         });
+        const [github, supabase, gmail] = await Promise.all([
+          loadIntegration(account.prisma, account.user.id, "github"),
+          loadIntegration(account.prisma, account.user.id, "supabase"),
+          loadIntegration(account.prisma, account.user.id, "gmail"),
+        ]);
+        if (github) connectedIntegrations.add("github");
+        if (supabase) connectedIntegrations.add("supabase");
+        if (gmail) connectedIntegrations.add("gmail");
         overrides = new Map(configurations.flatMap(({ plugin, config }) => {
           if (config && typeof config === "object" && "enabled" in config && typeof config.enabled === "boolean") {
             return [[plugin.slug, config.enabled] as [string, boolean]];
@@ -50,7 +63,11 @@ export async function GET() {
     plugins: plugins.map((plugin) => ({
       ...plugin,
       enabled: overrides.get(plugin.slug) ?? plugin.enabled,
-      configured: plugin.slug !== "web-search" || Boolean(process.env.WEB_SEARCH_API_KEY),
+      configured: plugin.slug === "web-search"
+        ? Boolean(process.env.WEB_SEARCH_API_KEY)
+        : ["github", "supabase", "gmail"].includes(plugin.slug)
+          ? connectedIntegrations.has(plugin.slug)
+          : true,
     })),
   });
 }

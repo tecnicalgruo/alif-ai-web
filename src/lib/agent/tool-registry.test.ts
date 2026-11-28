@@ -3,7 +3,21 @@ import { calculateExpression, summarizeText, toolRegistry } from "./tool-registr
 
 describe("tool registry", () => {
   it("contains the initial safe tools", () => {
-    expect(toolRegistry.map((tool) => tool.name)).toEqual(["calculator", "web_search", "text_summarizer"]);
+    expect(toolRegistry.map((tool) => tool.name)).toEqual([
+      "calculator",
+      "web_search",
+      "text_summarizer",
+      "github_list_repositories",
+      "github_search_issues",
+      "github_create_issue",
+      "supabase_read_rows",
+      "supabase_insert_row",
+      "supabase_update_rows",
+      "gmail_search_messages",
+      "gmail_read_message",
+      "gmail_send_message",
+    ]);
+    expect(toolRegistry.find((tool) => tool.name === "supabase_update_rows")?.permissions).toBe("external");
   });
 
   it("evaluates approved arithmetic expressions", () => {

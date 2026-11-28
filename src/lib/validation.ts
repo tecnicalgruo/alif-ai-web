@@ -36,7 +36,20 @@ export const pluginPreferenceSchema = z.object({
 
 export const agentRequestSchema = z.object({
   objective: z.string().trim().min(3).max(5000),
-  approvedTools: z.array(z.enum(["calculator", "web_search", "text_summarizer"])).max(3).default([]),
+  approvedTools: z.array(z.enum([
+    "calculator",
+    "web_search",
+    "text_summarizer",
+    "github_list_repositories",
+    "github_search_issues",
+    "github_create_issue",
+    "supabase_read_rows",
+    "supabase_insert_row",
+    "supabase_update_rows",
+    "gmail_search_messages",
+    "gmail_read_message",
+    "gmail_send_message",
+  ])).max(12).default([]),
   language: z.enum(["en", "bn"]).default("en"),
 });
 
